@@ -10,7 +10,6 @@
             "nss",
             "nspr",
             "atk",
-            "atk-bridge",
             "cups",
             "dbus",
             "expat",
