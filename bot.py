@@ -11,7 +11,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 CHECK_INTERVAL_MIN = 1
 CHECK_INTERVAL_MAX = 2
 
-COOLDOWN = 20  # seconds (recommended: 15–30)
+COOLDOWN = 20  # seconds
 # ================================
 
 bot = Bot(token=TOKEN)
@@ -19,8 +19,13 @@ bot = Bot(token=TOKEN)
 # track last alert time per train
 last_alert_time = {}
 
+# create session (important for KTMB)
+session = requests.Session()
+
+
 def send_alert(msg):
     bot.send_message(chat_id=CHAT_ID, text=msg)
+
 
 def check_route(date, from_station, to_station, condition):
     url = "https://shuttleonline.ktmb.com.my/api/shuttle/search"
@@ -32,12 +37,18 @@ def check_route(date, from_station, to_station, condition):
     }
 
     headers = {
-        "User-Agent": "Mozilla/5.0",
-        "Content-Type": "application/json"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Accept": "application/json, text/plain, */*",
+        "Content-Type": "application/json",
+        "Origin": "https://shuttleonline.ktmb.com.my",
+        "Referer": "https://shuttleonline.ktmb.com.my/"
     }
 
     try:
-        response = requests.post(url, json=payload, headers=headers)
+        # 👇 get session cookies first (VERY IMPORTANT)
+        session.get("https://shuttleonline.ktmb.com.my/")
+
+        response = session.post(url, json=payload, headers=headers)
 
         if response.status_code != 200:
             print(f"❌ API error {date}: {response.status_code}")
@@ -59,7 +70,7 @@ def check_route(date, from_station, to_station, condition):
                     key = f"{date}_{from_station}_{dep}"
                     current_time = time.time()
 
-                    # 🔁 cooldown-based repeat alerts
+                    # 🔁 cooldown alert system
                     if key not in last_alert_time or current_time - last_alert_time[key] > COOLDOWN:
                         last_alert_time[key] = current_time
 
@@ -82,18 +93,21 @@ def check_route(date, from_station, to_station, condition):
 def before_2pm(time_str):
     return time_str < "14:00"
 
+
 def after_1230pm(time_str):
     return time_str >= "12:30"
+
 
 # =============================================
 
 
 print("🚀 KTMB Multi-Route Bot Running...")
 
+
 while True:
-    # ✅ 18 Apr: Woodlands → JB (before 2pm)
+    # ✅ 1 May: Woodlands → JB (before 2pm)
     check_route(
-        "2026-04-18",
+        "2026-05-01",
         "WOODLANDS CIQ",
         "JB SENTRAL",
         before_2pm
