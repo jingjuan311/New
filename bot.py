@@ -26,19 +26,30 @@ def is_after_1230(t):
 def is_before_1900(t):
     return t < "19:00"
 
-# ---------- MAIN CHECK FUNCTION ----------
+# ---------- MAIN CHECK ----------
 def check_page(page, date, from_station, to_station, condition):
     page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
     time.sleep(3)
 
     try:
-        page.select_option("select#fromStation", from_station)
-        page.select_option("select#toStation", to_station)
-        page.fill("input[type='date']", date)
+        # FROM
+        page.click("text=From")
+        page.click(f"text={from_station}")
+
+        # TO
+        page.click("text=To")
+        page.click(f"text={to_station}")
+
+        # DATE
+        page.fill("input[placeholder='Select Date']", date)
+
+        # SEARCH
         page.click("button:has-text('Search')")
         time.sleep(3)
-    except:
-        print("⚠️ UI selection failed")
+
+    except Exception as e:
+        print("❌ UI selection failed:", e)
+        return
 
     rows = page.query_selector_all("table tbody tr")
 
@@ -46,7 +57,6 @@ def check_page(page, date, from_station, to_station, condition):
         try:
             dep_time = row.query_selector("td:nth-child(1)").inner_text().strip()
 
-            # 🎯 Apply time condition
             if not condition(dep_time):
                 continue
 
@@ -77,8 +87,8 @@ def check_page(page, date, from_station, to_station, condition):
             print("Row error:", e)
 
 
-# ---------- RUN BOT ----------
-print("🚀 Playwright bot running...")
+# ---------- RUN ----------
+print("🚀 KTMB Bot Running...")
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
