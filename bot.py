@@ -32,15 +32,15 @@ def check_page(page, date, from_station, to_station, condition):
         page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
         page.wait_for_load_state("networkidle")
 
-        # 🔽 Fill date (this is the ONLY thing we change)
+        # Fill date
         date_input = page.locator("input[placeholder='Depart']")
         date_input.click()
         date_input.fill(date)
 
-        # 🔽 Click SEARCH
+        # Click search
         page.locator("button:has-text('SEARCH')").click()
 
-        # wait for results
+        # Wait for results
         page.wait_for_selector("table tbody tr", timeout=10000)
 
     except Exception as e:
@@ -53,28 +53,35 @@ def check_page(page, date, from_station, to_station, condition):
         row = rows.nth(i)
 
         try:
-            dep_time = row.locator("td").nth(0).inner_text().strip()
+            # Departure time
+            dep_time = row.locator("td").nth(1).inner_text().strip()
 
             if not condition(dep_time):
                 continue
 
-            button = row.locator("button")
-            btn_text = button.inner_text().lower()
+            # ✅ SEAT DETECTION (CORRECT)
+            seats_text = row.locator("td").nth(4).inner_text().strip()
 
-            if "sold out" not in btn_text:
+            try:
+                seats = int(seats_text)
+            except:
+                seats = 0
+
+            if seats > 0:
                 key = f"{date}_{from_station}_{dep_time}"
                 now = time.time()
 
                 if key not in last_alert_time or now - last_alert_time[key] > COOLDOWN:
                     last_alert_time[key] = now
 
-                    print(f"🎯 FOUND {date} {dep_time}")
+                    print(f"🎯 FOUND {date} {dep_time} seats={seats}")
 
                     asyncio.run(send_alert(
                         f"🚆 SLOT AVAILABLE!\n"
                         f"📅 {date}\n"
                         f"📍 {from_station} → {to_station}\n"
                         f"🕒 {dep_time}\n"
+                        f"🎟 Seats: {seats}\n"
                         f"⚡ BOOK NOW!"
                     ))
 
