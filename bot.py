@@ -28,24 +28,33 @@ def is_before_1900(t):
 
 # ---------- MAIN CHECK ----------
 def check_page(page, date, from_station, to_station, condition):
-    page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
-    time.sleep(3)
-
     try:
-        # FROM
-        page.click("text=From")
+        page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
+        page.wait_for_load_state("networkidle")
+
+        # wait for inputs
+        page.wait_for_selector("input", timeout=10000)
+
+        inputs = page.query_selector_all("input")
+
+        # 🔽 FROM station
+        inputs[0].click()
         page.click(f"text={from_station}")
 
-        # TO
-        page.click("text=To")
+        # 🔽 TO station
+        inputs = page.query_selector_all("input")
+        inputs[1].click()
         page.click(f"text={to_station}")
 
-        # DATE
-        page.fill("input[placeholder='Select Date']", date)
+        # 🔽 DATE
+        inputs = page.query_selector_all("input")
+        inputs[2].fill(date)
 
-        # SEARCH
+        # 🔽 SEARCH
         page.click("button:has-text('Search')")
-        time.sleep(3)
+
+        # wait for results
+        page.wait_for_selector("table tbody tr", timeout=10000)
 
     except Exception as e:
         print("❌ UI selection failed:", e)
@@ -57,6 +66,7 @@ def check_page(page, date, from_station, to_station, condition):
         try:
             dep_time = row.query_selector("td:nth-child(1)").inner_text().strip()
 
+            # 🎯 Apply time condition
             if not condition(dep_time):
                 continue
 
