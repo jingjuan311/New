@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 # ============ CONFIG ============
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-COOLDOWN = 30
+COOLDOWN = 20
 # ================================
 
 bot = Bot(token=TOKEN)
@@ -31,7 +31,6 @@ def select_date(page, day, month_text):
     page.locator("input[placeholder='Depart']").click()
     page.wait_for_selector("text=2026", timeout=5000)
 
-    # ensure correct month
     for _ in range(5):
         header = page.locator("text=2026").first.inner_text()
         if month_text in header:
@@ -39,15 +38,12 @@ def select_date(page, day, month_text):
         page.locator("button:has-text('›')").click()
         time.sleep(0.5)
 
-    # click day
     page.locator(f"text='{day}'").first.click()
 
 # ---------- MAIN CHECK ----------
 def check_page(page, date_label, day, month_text, from_station, to_station, condition):
     try:
-        # open form page
         page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
-
         page.wait_for_selector("button:has-text('SEARCH')", timeout=10000)
 
         # select date
@@ -59,17 +55,15 @@ def check_page(page, date_label, day, month_text, from_station, to_station, cond
         # wait redirect
         page.wait_for_url("**/ShuttleTrip", timeout=10000)
 
-        # wait table
+        # wait results
         page.wait_for_selector("table tbody tr", timeout=15000)
 
-        time.sleep(2)
-
     except Exception as e:
-        print("❌ SEARCH FLOW FAILED:", e)
+        print("❌ SEARCH FAILED:", e)
         return
 
     rows = page.locator("table tbody tr")
-    print("🔍 Rows found:", rows.count())
+    print("🔍 Rows:", rows.count())
 
     for i in range(rows.count()):
         row = rows.nth(i)
@@ -88,24 +82,49 @@ def check_page(page, date_label, day, month_text, from_station, to_station, cond
             if not condition(dep_time):
                 continue
 
-            # 🔥 FIXED SEAT DETECTION (handles icons)
+            # ---------- SEAT DETECTION ----------
             seats = 0
             for v in values:
                 match = re.search(r"\d+", v)
                 if match:
                     seats = int(match.group())
 
+            # ---------- BUTTON DETECTION ----------
+            button = row.locator("button")
+            btn_text = ""
+
+            if button.count() > 0:
+                try:
+                    btn_text = button.inner_text().lower()
+                except:
+                    pass
+
+            # ---------- SNIPER LOGIC ----------
+            trigger = False
+
             if seats > 0:
+                trigger = True
+            elif "login" in btn_text:
+                trigger = True
+            elif button.count() > 0:
+                try:
+                    if button.is_enabled():
+                        trigger = True
+                except:
+                    pass
+
+            # ---------- ALERT ----------
+            if trigger:
                 key = f"{date_label}_{from_station}_{dep_time}"
                 now = time.time()
 
                 if key not in last_alert_time or now - last_alert_time[key] > COOLDOWN:
                     last_alert_time[key] = now
 
-                    print(f"🎯 FOUND {dep_time} seats={seats}")
+                    print(f"🚨 SNIPER HIT {dep_time} seats={seats}")
 
                     asyncio.run(send_alert(
-                        f"🚆 SLOT AVAILABLE!\n"
+                        f"🚨 SNIPER ALERT!\n"
                         f"📅 {date_label}\n"
                         f"📍 {from_station} → {to_station}\n"
                         f"🕒 {dep_time}\n"
@@ -113,21 +132,19 @@ def check_page(page, date_label, day, month_text, from_station, to_station, cond
                         f"⚡ BOOK NOW!"
                     ))
 
-            else:
-                print(f"❌ {dep_time} sold out")
-
         except Exception as e:
             print("Row error:", e)
 
+
 # ---------- RUN ----------
-print("🚀 KTMB Bot Running...")
+print("🚀 SNIPER BOT RUNNING...")
 
 with sync_playwright() as p:
     browser = p.chromium.launch(headless=True)
     page = browser.new_page()
 
     while True:
-        # ✅ 19 Apr JB → Woodlands (after 12:30)
+        # 19 Apr JB → Woodlands (after 12:30)
         check_page(
             page,
             "19 Apr",
@@ -138,7 +155,7 @@ with sync_playwright() as p:
             is_after_1230
         )
 
-        # ✅ 1 May Woodlands → JB (before 19:00)
+        # 1 May Woodlands → JB (before 19:00)
         check_page(
             page,
             "1 May",
@@ -149,6 +166,6 @@ with sync_playwright() as p:
             is_before_1900
         )
 
-        sleep_time = random.uniform(2, 4)
+        sleep_time = random.uniform(0.8, 1.5)
         print(f"⏳ Sleeping {sleep_time:.2f}s\n")
         time.sleep(sleep_time)
