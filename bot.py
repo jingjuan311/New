@@ -8,7 +8,6 @@ from playwright.sync_api import sync_playwright
 # ============ CONFIG ============
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
-
 COOLDOWN = 30
 # ================================
 
@@ -26,28 +25,54 @@ def is_after_1230(t):
 def is_before_1900(t):
     return t < "19:00"
 
+# ---------- DATE PICKER ----------
+def select_date(page, day, month_text):
+    # open calendar
+    page.locator("input[placeholder='Depart']").click()
+
+    # wait calendar visible
+    page.wait_for_selector("text=2026", timeout=5000)
+
+    # 🔁 ensure correct month (loop max 5 clicks)
+    for _ in range(5):
+        header = page.locator("text=2026").first.inner_text()
+        if month_text in header:
+            break
+        page.locator("button:has-text('›')").click()
+        time.sleep(0.5)
+
+    # click the day
+    page.locator(f"text='{day}'").first.click()
+
+
 # ---------- MAIN CHECK ----------
-def check_page(page, date_display, date_fill, from_station, to_station, condition):
+def check_page(page, date_label, day, month_text, from_station, to_station, condition):
     try:
+        # 1️⃣ open form page
         page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
-        page.wait_for_load_state("networkidle")
 
-        # 🔽 Fill date (IMPORTANT FORMAT)
-        date_input = page.locator("input[placeholder='Depart']")
-        date_input.click()
-        date_input.fill(date_fill)
+        page.wait_for_selector("button:has-text('SEARCH')", timeout=10000)
 
-        # 🔽 Click SEARCH
+        # 2️⃣ select date properly
+        select_date(page, day, month_text)
+
+        # 3️⃣ click search
         page.locator("button:has-text('SEARCH')").click()
 
-        # wait for results
-        page.wait_for_selector("table tbody tr", timeout=10000)
+        # 4️⃣ wait redirect
+        page.wait_for_url("**/ShuttleTrip", timeout=10000)
+
+        # 5️⃣ wait results
+        page.wait_for_selector("table tbody tr", timeout=15000)
+
+        time.sleep(2)
 
     except Exception as e:
-        print("❌ UI selection failed:", e)
+        print("❌ SEARCH FLOW FAILED:", e)
         return
 
     rows = page.locator("table tbody tr")
+    print("🔍 Rows found:", rows.count())
 
     for i in range(rows.count()):
         row = rows.nth(i)
@@ -57,44 +82,38 @@ def check_page(page, date_display, date_fill, from_station, to_station, conditio
 
             values = []
             for j in range(cells.count()):
-                text = cells.nth(j).inner_text().strip()
-                values.append(text)
+                values.append(cells.nth(j).inner_text().strip())
 
-            # 🔍 DEBUG (IMPORTANT)
             print("ROW:", values)
 
-            # departure time
             dep_time = values[1]
 
             if not condition(dep_time):
                 continue
 
-            # 🔥 FIND SEATS DYNAMICALLY
+            # 🔥 seat detection (dynamic)
             seats = 0
             for v in values:
                 if v.isdigit():
                     seats = int(v)
 
             if seats > 0:
-                key = f"{date_display}_{from_station}_{dep_time}"
+                key = f"{date_label}_{from_station}_{dep_time}"
                 now = time.time()
 
                 if key not in last_alert_time or now - last_alert_time[key] > COOLDOWN:
                     last_alert_time[key] = now
 
-                    print(f"🎯 FOUND {date_display} {dep_time} seats={seats}")
+                    print(f"🎯 FOUND {dep_time} seats={seats}")
 
                     asyncio.run(send_alert(
                         f"🚆 SLOT AVAILABLE!\n"
-                        f"📅 {date_display}\n"
+                        f"📅 {date_label}\n"
                         f"📍 {from_station} → {to_station}\n"
                         f"🕒 {dep_time}\n"
                         f"🎟 Seats: {seats}\n"
                         f"⚡ BOOK NOW!"
                     ))
-
-            else:
-                print(f"❌ {dep_time} sold out")
 
         except Exception as e:
             print("Row error:", e)
@@ -112,7 +131,8 @@ with sync_playwright() as p:
         check_page(
             page,
             "19 Apr",
-            "19 Apr 2026",
+            19,
+            "April",
             "JB SENTRAL",
             "WOODLANDS CIQ",
             is_after_1230
@@ -122,7 +142,8 @@ with sync_playwright() as p:
         check_page(
             page,
             "1 May",
-            "01 May 2026",
+            1,
+            "May",
             "WOODLANDS CIQ",
             "JB SENTRAL",
             is_before_1900
