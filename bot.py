@@ -2,6 +2,7 @@ import time
 import random
 import os
 import asyncio
+import re
 from telegram import Bot
 from playwright.sync_api import sync_playwright
 
@@ -27,13 +28,10 @@ def is_before_1900(t):
 
 # ---------- DATE PICKER ----------
 def select_date(page, day, month_text):
-    # open calendar
     page.locator("input[placeholder='Depart']").click()
-
-    # wait calendar visible
     page.wait_for_selector("text=2026", timeout=5000)
 
-    # 🔁 ensure correct month (loop max 5 clicks)
+    # ensure correct month
     for _ in range(5):
         header = page.locator("text=2026").first.inner_text()
         if month_text in header:
@@ -41,28 +39,27 @@ def select_date(page, day, month_text):
         page.locator("button:has-text('›')").click()
         time.sleep(0.5)
 
-    # click the day
+    # click day
     page.locator(f"text='{day}'").first.click()
-
 
 # ---------- MAIN CHECK ----------
 def check_page(page, date_label, day, month_text, from_station, to_station, condition):
     try:
-        # 1️⃣ open form page
+        # open form page
         page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
 
         page.wait_for_selector("button:has-text('SEARCH')", timeout=10000)
 
-        # 2️⃣ select date properly
+        # select date
         select_date(page, day, month_text)
 
-        # 3️⃣ click search
+        # click search
         page.locator("button:has-text('SEARCH')").click()
 
-        # 4️⃣ wait redirect
+        # wait redirect
         page.wait_for_url("**/ShuttleTrip", timeout=10000)
 
-        # 5️⃣ wait results
+        # wait table
         page.wait_for_selector("table tbody tr", timeout=15000)
 
         time.sleep(2)
@@ -91,11 +88,12 @@ def check_page(page, date_label, day, month_text, from_station, to_station, cond
             if not condition(dep_time):
                 continue
 
-            # 🔥 seat detection (dynamic)
+            # 🔥 FIXED SEAT DETECTION (handles icons)
             seats = 0
             for v in values:
-                if v.isdigit():
-                    seats = int(v)
+                match = re.search(r"\d+", v)
+                if match:
+                    seats = int(match.group())
 
             if seats > 0:
                 key = f"{date_label}_{from_station}_{dep_time}"
@@ -115,9 +113,11 @@ def check_page(page, date_label, day, month_text, from_station, to_station, cond
                         f"⚡ BOOK NOW!"
                     ))
 
+            else:
+                print(f"❌ {dep_time} sold out")
+
         except Exception as e:
             print("Row error:", e)
-
 
 # ---------- RUN ----------
 print("🚀 KTMB Bot Running...")
