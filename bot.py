@@ -27,20 +27,20 @@ def is_before_1900(t):
     return t < "19:00"
 
 # ---------- MAIN CHECK ----------
-def check_page(page, date, from_station, to_station, condition):
+def check_page(page, date_display, date_fill, from_station, to_station, condition):
     try:
         page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
         page.wait_for_load_state("networkidle")
 
-        # Fill date
+        # 🔽 Fill date (IMPORTANT FORMAT)
         date_input = page.locator("input[placeholder='Depart']")
         date_input.click()
-        date_input.fill(date)
+        date_input.fill(date_fill)
 
-        # Click search
+        # 🔽 Click SEARCH
         page.locator("button:has-text('SEARCH')").click()
 
-        # Wait for results
+        # wait for results
         page.wait_for_selector("table tbody tr", timeout=10000)
 
     except Exception as e:
@@ -53,32 +53,40 @@ def check_page(page, date, from_station, to_station, condition):
         row = rows.nth(i)
 
         try:
-            # Departure time
-            dep_time = row.locator("td").nth(1).inner_text().strip()
+            cells = row.locator("td")
+
+            values = []
+            for j in range(cells.count()):
+                text = cells.nth(j).inner_text().strip()
+                values.append(text)
+
+            # 🔍 DEBUG (IMPORTANT)
+            print("ROW:", values)
+
+            # departure time
+            dep_time = values[1]
 
             if not condition(dep_time):
                 continue
 
-            # ✅ SEAT DETECTION (CORRECT)
-            seats_text = row.locator("td").nth(4).inner_text().strip()
-
-            try:
-                seats = int(seats_text)
-            except:
-                seats = 0
+            # 🔥 FIND SEATS DYNAMICALLY
+            seats = 0
+            for v in values:
+                if v.isdigit():
+                    seats = int(v)
 
             if seats > 0:
-                key = f"{date}_{from_station}_{dep_time}"
+                key = f"{date_display}_{from_station}_{dep_time}"
                 now = time.time()
 
                 if key not in last_alert_time or now - last_alert_time[key] > COOLDOWN:
                     last_alert_time[key] = now
 
-                    print(f"🎯 FOUND {date} {dep_time} seats={seats}")
+                    print(f"🎯 FOUND {date_display} {dep_time} seats={seats}")
 
                     asyncio.run(send_alert(
                         f"🚆 SLOT AVAILABLE!\n"
-                        f"📅 {date}\n"
+                        f"📅 {date_display}\n"
                         f"📍 {from_station} → {to_station}\n"
                         f"🕒 {dep_time}\n"
                         f"🎟 Seats: {seats}\n"
@@ -86,7 +94,7 @@ def check_page(page, date, from_station, to_station, condition):
                     ))
 
             else:
-                print(f"❌ {date} {dep_time} sold out")
+                print(f"❌ {dep_time} sold out")
 
         except Exception as e:
             print("Row error:", e)
@@ -103,7 +111,8 @@ with sync_playwright() as p:
         # ✅ 19 Apr JB → Woodlands (after 12:30)
         check_page(
             page,
-            "2026-04-19",
+            "19 Apr",
+            "19 Apr 2026",
             "JB SENTRAL",
             "WOODLANDS CIQ",
             is_after_1230
@@ -112,7 +121,8 @@ with sync_playwright() as p:
         # ✅ 1 May Woodlands → JB (before 19:00)
         check_page(
             page,
-            "2026-05-01",
+            "1 May",
+            "01 May 2026",
             "WOODLANDS CIQ",
             "JB SENTRAL",
             is_before_1900
