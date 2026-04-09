@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 TOKEN = os.getenv("TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-COOLDOWN = 30  # seconds
+COOLDOWN = 30
 # ================================
 
 bot = Bot(token=TOKEN)
@@ -32,26 +32,13 @@ def check_page(page, date, from_station, to_station, condition):
         page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
         page.wait_for_load_state("networkidle")
 
-        # wait for inputs
-        page.wait_for_selector("input", timeout=10000)
+        # 🔽 Fill date (this is the ONLY thing we change)
+        date_input = page.locator("input[placeholder='Depart']")
+        date_input.click()
+        date_input.fill(date)
 
-        inputs = page.query_selector_all("input")
-
-        # 🔽 FROM station
-        inputs[0].click()
-        page.click(f"text={from_station}")
-
-        # 🔽 TO station
-        inputs = page.query_selector_all("input")
-        inputs[1].click()
-        page.click(f"text={to_station}")
-
-        # 🔽 DATE
-        inputs = page.query_selector_all("input")
-        inputs[2].fill(date)
-
-        # 🔽 SEARCH
-        page.click("button:has-text('Search')")
+        # 🔽 Click SEARCH
+        page.locator("button:has-text('SEARCH')").click()
 
         # wait for results
         page.wait_for_selector("table tbody tr", timeout=10000)
@@ -60,17 +47,18 @@ def check_page(page, date, from_station, to_station, condition):
         print("❌ UI selection failed:", e)
         return
 
-    rows = page.query_selector_all("table tbody tr")
+    rows = page.locator("table tbody tr")
 
-    for row in rows:
+    for i in range(rows.count()):
+        row = rows.nth(i)
+
         try:
-            dep_time = row.query_selector("td:nth-child(1)").inner_text().strip()
+            dep_time = row.locator("td").nth(0).inner_text().strip()
 
-            # 🎯 Apply time condition
             if not condition(dep_time):
                 continue
 
-            button = row.query_selector("button")
+            button = row.locator("button")
             btn_text = button.inner_text().lower()
 
             if "sold out" not in btn_text:
