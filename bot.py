@@ -33,26 +33,35 @@ def close_popup(page):
             page.keyboard.press("Escape")
             time.sleep(0.5)
 
-        # remove overlay
         page.evaluate("""
             document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
         """)
     except:
         pass
 
-# ---------- DATE PICKER ----------
+# ---------- DATE PICKER (FIXED) ----------
 def select_date(page, day, month_text):
     page.locator("input[placeholder='Depart']").click()
-    page.wait_for_selector("text=2026", timeout=5000)
+    page.wait_for_selector(".datepicker-days", timeout=5000)
 
-    for _ in range(5):
-        header = page.locator("text=2026").first.inner_text()
+    for _ in range(6):
+        header = page.locator(".datepicker-days th.datepicker-switch").inner_text()
+
         if month_text in header:
             break
-        page.locator("button:has-text('›')").click()
+
+        # ✅ NEW FIXED NEXT BUTTON
+        next_btn = page.locator(".datepicker-days th.next")
+
+        if next_btn.count() > 0:
+            next_btn.click()
+        else:
+            page.keyboard.press("ArrowRight")
+
         time.sleep(0.5)
 
-    page.locator(f"text='{day}'").first.click()
+    # click day
+    page.locator(f".datepicker-days td.day >> text='{day}'").first.click()
 
 # ---------- MAIN CHECK ----------
 def check_page(page, date_label, day, month_text, from_station, to_station, condition):
@@ -69,7 +78,7 @@ def check_page(page, date_label, day, month_text, from_station, to_station, cond
 
         close_popup(page)
 
-        # click search (force click fixes overlay issues)
+        # click search
         page.locator("button:has-text('SEARCH')").click(force=True)
 
         # wait redirect
