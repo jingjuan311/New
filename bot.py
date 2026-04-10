@@ -26,6 +26,20 @@ def is_after_1230(t):
 def is_before_1900(t):
     return t < "19:00"
 
+# ---------- POPUP FIX ----------
+def close_popup(page):
+    try:
+        if page.locator("#validationSummaryModal").is_visible():
+            page.keyboard.press("Escape")
+            time.sleep(0.5)
+
+        # remove overlay
+        page.evaluate("""
+            document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+        """)
+    except:
+        pass
+
 # ---------- DATE PICKER ----------
 def select_date(page, day, month_text):
     page.locator("input[placeholder='Depart']").click()
@@ -44,13 +58,19 @@ def select_date(page, day, month_text):
 def check_page(page, date_label, day, month_text, from_station, to_station, condition):
     try:
         page.goto("https://shuttleonline.ktmb.com.my/Home/Shuttle")
+        time.sleep(1)
+
+        close_popup(page)
+
         page.wait_for_selector("button:has-text('SEARCH')", timeout=10000)
 
         # select date
         select_date(page, day, month_text)
 
-        # click search
-        page.locator("button:has-text('SEARCH')").click()
+        close_popup(page)
+
+        # click search (force click fixes overlay issues)
+        page.locator("button:has-text('SEARCH')").click(force=True)
 
         # wait redirect
         page.wait_for_url("**/ShuttleTrip", timeout=10000)
@@ -135,7 +155,6 @@ def check_page(page, date_label, day, month_text, from_station, to_station, cond
         except Exception as e:
             print("Row error:", e)
 
-
 # ---------- RUN ----------
 print("🚀 SNIPER BOT RUNNING...")
 
@@ -144,7 +163,7 @@ with sync_playwright() as p:
     page = browser.new_page()
 
     while True:
-        # 19 Apr JB → Woodlands (after 12:30)
+        # 19 Apr JB → Woodlands
         check_page(
             page,
             "19 Apr",
@@ -155,7 +174,7 @@ with sync_playwright() as p:
             is_after_1230
         )
 
-        # 1 May Woodlands → JB (before 19:00)
+        # 1 May Woodlands → JB
         check_page(
             page,
             "1 May",
