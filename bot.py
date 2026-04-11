@@ -39,18 +39,32 @@ def close_popup(page):
     except:
         pass
 
-# ---------- DATE PICKER (FIXED) ----------
+# ---------- DATE PICKER (FINAL FIX) ----------
 def select_date(page, day, month_text):
-    page.locator("input[placeholder='Depart']").click()
-    page.wait_for_selector(".datepicker-days", timeout=5000)
+    date_input = page.locator("input[placeholder='Depart']")
 
+    # try multiple ways to open calendar
+    date_input.click()
+    time.sleep(0.5)
+
+    if not page.locator(".datepicker-days").is_visible():
+        date_input.click(force=True)
+        time.sleep(0.5)
+
+    if not page.locator(".datepicker-days").is_visible():
+        date_input.press("Enter")
+        time.sleep(0.5)
+
+    # wait calendar
+    page.wait_for_selector(".datepicker-days", timeout=10000)
+
+    # navigate month
     for _ in range(6):
         header = page.locator(".datepicker-days th.datepicker-switch").inner_text()
 
         if month_text in header:
             break
 
-        # ✅ NEW FIXED NEXT BUTTON
         next_btn = page.locator(".datepicker-days th.next")
 
         if next_btn.count() > 0:
